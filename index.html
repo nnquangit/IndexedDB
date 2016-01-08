@@ -1,0 +1,308 @@
+<!doctype html>
+<html ng-app="testlocaldb">
+
+<head>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/semantic-ui/2.1.5/semantic.min.css">
+    <script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.4.7/angular.min.js"></script>
+    <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/semantic-ui/2.1.5/semantic.min.js"></script>
+</head>
+
+<body ng-controller="MainController as mainCtrl" ng-init="mainCtrl.init()">
+    <form id="edit" class="ui small modal form">
+        <i class="close icon"></i>
+        <div class="header">Profile</div>
+        <div class="content">
+            <div class="field">
+                <div class="two fields">
+                    <div class="field">
+                        <input placeholder="Name" type="text" ng-model="entry.name">
+                    </div>
+                    <div class="field">
+                        <input placeholder="SSN" type="text" ng-model="entry.ssn">
+                    </div>
+                </div>
+            </div>
+            <div class="field">
+                <div class="two fields">
+                    <div class="field">
+                        <input placeholder="E-mail address" type="text" ng-model="entry.email">
+                    </div>
+                    <div class="field">
+                        <input placeholder="Age" type="text" ng-model="entry.age">
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="actions">
+            <div class="ui black deny labeled icon button">
+                <i class="undo icon"></i>Close
+            </div>
+            <div class="ui positive right labeled icon button" ng-click="save()">
+                Save <i class="checkmark icon"></i>
+            </div>
+        </div>
+    </form>
+    <div class="ui container">
+        <br />
+        <br />
+        <h1>Theming Examples</h1>
+        <br />
+        <br />
+        <div class="inline fields">
+            <select class="ui dropdown" ng-model="table.length" ng-change="listData()">
+                <option value="5">5</option>
+                <option value="8">8</option>
+            </select> &nbsp;
+            <div class="ui buttons">
+                <button class="ui small red button" ng-click="clear()">Clear</button>
+                <div class="or"></div>
+                <button class="ui small blue icon button" ng-click="edit()">
+                    <i class="user icon"></i> Add User
+                </button>
+
+            </div>
+        </div>
+
+        <table class="ui compact celled definition table">
+            <thead class="full-width">
+                <tr>
+                    <th></th>
+                    <th width="150" class="center aligned">SSN</th>
+                    <th>Fullname</th>
+                    <th>E-mail address</th>
+                    <th class="center aligned">Age</th>
+                    <th width="150" class="center aligned">Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr ng-repeat="e in list track by $index">
+                    <td class="collapsing">
+                        <div class="ui fitted slider checkbox">
+                            <input type="checkbox">
+                            <label></label>
+                        </div>
+                    </td>
+                    <td class="center aligned">{{e.ssn}}</td>
+                    <td>{{e.name}}</td>
+                    <td>{{e.email}}</td>
+                    <td class="center aligned">{{e.age}}</td>
+                    <td class="center aligned">
+                        <div class="ui buttons">
+                            <button class="ui small button" ng-click="edit(e)">Edit</button>
+                            <div class="or"></div>
+                            <button class="ui small red button" ng-click="remove(e)">Delete</button>
+                        </div>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+        <div class="ui buttons right floated">
+            <button class="ui small button" ng-click="prev()">Prev</button>
+            <div class="or"></div>
+            <button class="ui small button" ng-click="next()">Next</button>
+        </div>
+        <div class="inline fields">
+            <label class="">Show form {{((table.page-1)*table.length)+1}} to {{((table.page*table.length)>table.total)?table.total:(table.page*table.length+1)}} of {{table.total|number}} entries</label>
+        </div>
+
+
+    </div>
+    <script>
+        var app = angular.module('testlocaldb', []);
+        app
+            .service('Customers', function() {
+                return {
+                    getConnection: function(callback) {
+                        var connection = indexedDB.open("TestDB50", 1);
+                        connection.onsuccess = function(event) {
+                            callback(event.target.result);
+                        };
+                        connection.onerror = function(event) {
+                            console.log(event.target.errorCode);
+                        };
+                        connection.onupgradeneeded = function(event) {
+                            var objectStore = event.target.result.createObjectStore("customers", {
+                                keyPath: "ssn"
+                            });
+                            objectStore.createIndex("name", "name", {
+                                unique: false
+                            });
+                            objectStore.createIndex("email", "email", {
+                                unique: true
+                            });
+                        };
+                    },
+                    getData: function(input, callback) {
+                        this.getConnection(function(db) {
+                            var from = input.from | 0;
+                            console.log(from);
+                            var length = parseInt(input.length);
+                            var current = 0;
+                            var list = [];
+                            var transaction = db.transaction(["customers"], "readwrite");
+
+                            transaction.oncomplete = function(ec) {
+                                callback(list);
+                            };
+
+                            transaction.objectStore("customers").openCursor().onsuccess = function(es) {
+                                var cursor = es.target.result;
+
+                                if (current !== from) {
+                                    console.log(cursor.value);
+                                    current = from;
+                                    cursor.advance(from);
+                                    console.log('move');
+                                    console.log(cursor.value);
+                                    return;
+                                }
+
+                                if (cursor && length > 0) {
+                                    list.push(cursor.value);
+                                    length--;
+                                    cursor.continue();
+                                }
+                            };
+                        });
+                    },
+                    getCount: function(input, callback) {
+                        this.getConnection(function(db) {
+                            db.transaction(["customers"], "readwrite").objectStore("customers").count().onsuccess = function(event) {
+                                callback(event.target.result);
+                            };
+                        });
+                    },
+                    randomdata: function(callback) {
+                        var entry = {
+                            name: 'Quang Ngo',
+                            ssn: '123',
+                            email: 'nnquangit',
+                            age: 1,
+                        };
+
+                        this.getConnection(function(db) {
+                            var transaction = db.transaction(["customers"], "readwrite");
+                            for (var i = 1; i < 200; i++) {
+                                console.log(i);
+                                transaction.objectStore("customers").put({
+                                    name: entry.name + ' - ' + i,
+                                    ssn: i + '' + entry.ssn + '-' + Math.floor((Math.random() * 9999) + 1000) + '-123',
+                                    email: entry.email + i + '@gmail.com',
+                                    age: Math.floor((Math.random() * 60) + 20)
+                                });
+                            }
+                        });
+                    },
+                    save: function(entry, callback) {
+                        this.getConnection(function(db) {
+                            var transaction = db.transaction(["customers"], "readwrite");
+
+                            transaction.oncomplete = function(evt) {
+                                callback(entry);
+                            };
+
+                            transaction.objectStore("customers").put(entry).onsuccess = function(es) {
+                                if (typeof callback == 'function') {
+                                    callback(entry);
+                                }
+                            };
+                        });
+                    },
+                    remove: function(ssn, callback) {
+                        this.getConnection(function(db) {
+                            db.transaction(["customers"], "readwrite").objectStore("customers").get(ssn).onsuccess = function(es) {
+                                es.target.transaction.objectStore("customers").delete(ssn).onsuccess = function(ec) {
+                                    callback(es.target.result);
+                                };
+                            };
+                        });
+                    },
+                    clear: function(callback) {
+                        this.getConnection(function(db) {
+                            db.transaction(["customers"], "readwrite").objectStore("customers").clear().onsuccess = function(es) {
+                                callback();
+                            };
+                        });
+                    }
+                };
+            })
+            .controller('MainController', function($scope, $http, Customers) {
+
+                $scope.entry = {};
+                $scope.list = [];
+                $scope.selected = [];
+                $scope.table = {
+                    length: "5",
+                    page: 1,
+                    from: 0
+                };
+
+                $scope.edit = function(entry) {
+                    $scope.entry = {};
+
+                    if (entry) {
+                        $scope.entry = entry;
+                    }
+
+                    $('#edit').modal('show');
+                };
+
+                $scope.save = function() {
+                    Customers.save($scope.entry, function(entry) {
+                        $('#edit').modal('close');
+                        $scope.entry = {};
+                        $scope.listData();
+                    });
+                };
+
+                $scope.remove = function(entry) {
+                    Customers.remove(entry.ssn, function(entry) {
+                        $scope.listData();
+                    });
+                };
+
+                $scope.clear = function(entry) {
+                    Customers.clear(function(entry) {
+                        $scope.listData();
+                    });
+                };
+
+                $scope.listData = function() {
+                    Customers.getCount($scope.table, function(count) {
+                        $scope.table.total = count;
+                        Customers.getData($scope.table, function(list) {
+                            $scope.list = list;
+                            $scope.$digest();
+                        });
+                    });
+                };
+
+                $scope.next = function() {
+                    $scope.table.page = ($scope.table.page * $scope.table.length > $scope.table.total) ? $scope.table.page : ($scope.table.page + 1);
+                    $scope.table.from = ($scope.table.page - 1) * $scope.table.length;
+                    $scope.listData();
+                };
+                $scope.prev = function() {
+                    $scope.table.page = ($scope.table.page > 1) ? ($scope.table.page - 1) : 1;
+                    $scope.table.from = ($scope.table.page - 1) * $scope.table.length;
+                    $scope.listData();
+                };
+
+                this.init = function() {
+                    console.log('init');
+                    Customers.getCount({}, function(count) {
+                        if (count) {
+                            $scope.listData();
+                            return;
+                        }
+                        Customers.randomdata(function() {
+                            $scope.listData();
+                        });
+                    });
+                };
+            });
+    </script>
+</body>
+
+</html>
